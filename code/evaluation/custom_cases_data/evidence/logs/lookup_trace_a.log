@@ -1,0 +1,8 @@
+2026-09-15T10:00:00Z level=INFO service=readback_collector event=export_started target_count=3 mode=point_in_time
+2026-09-15T10:00:01Z level=DEBUG service=account_service trace_id=rb-c-001 event=profile_lookup_started resource_id=account_9001 lookup_key=ines.v.old@example.net
+2026-09-15T10:00:01Z level=INFO service=account_service trace_id=rb-c-001 event=profile_lookup_completed resource_id=account_9001 rows=0 http_status=404
+2026-09-15T10:02:10Z level=DEBUG service=security_service trace_id=rb-c-002 event=audit_record_read_started resource_id=audit_record_9001 lookup_key=user_901
+2026-09-15T10:02:10Z level=INFO service=security_service trace_id=rb-c-002 event=audit_record_read_completed resource_id=audit_record_9001 rows=1 subject_reference=user_901 event_code=PRIVACY_REQUEST_ACCEPTED retention_until=2033-06-30T23:59:59Z
+2026-09-15T10:04:00Z level=DEBUG service=account_service trace_id=rb-c-003 event=profile_lookup_started resource_id=account_9002 lookup_key=tomas.brandt@example.org
+2026-09-15T10:04:00Z level=INFO service=account_service trace_id=rb-c-003 event=profile_lookup_completed resource_id=account_9002 rows=0 http_status=404
+2026-09-15T10:05:00Z level=INFO service=readback_collector event=export_completed queries=3 dropped=0

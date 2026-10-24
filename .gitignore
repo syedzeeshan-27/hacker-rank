@@ -1,0 +1,17 @@
+# secrets
+.env
+# run artifacts
+.cache/
+code.zip
+agent-trace/
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+# node / demo tooling
+node_modules/
+demo/raw/
+# challenge data lives in the official starter repo, not here
+dataset/

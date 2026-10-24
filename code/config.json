@@ -1,0 +1,19 @@
+{
+  "models": {
+    "vision": "claude-sonnet-5-5",
+    "text": "claude-sonnet-5-5"
+  },
+  "max_tokens": {
+    "vision": 4096,
+    "text": 4096
+  },
+  "pricing_usd_per_mtok": {
+    "claude-sonnet-5-5": {"input": 2.0, "output": 10.0},
+    "claude-opus-5-5": {"input": 4.0, "output": 20.0},
+    "claude-haiku-5-5": {"input": 0.10, "output": 0.50}
+  },
+  "intent_batch_size": 25,
+  "cache_dir": ".cache",
+  "output_file": "output.csv",
+  "sample_holdout_cases": ["case_04", "case_08", "case_12", "case_16", "case_20", "case_24", "case_28", "case_32"]
+}

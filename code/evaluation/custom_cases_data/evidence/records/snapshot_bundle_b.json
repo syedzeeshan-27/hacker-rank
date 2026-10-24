@@ -1,0 +1,22 @@
+{
+ "exported_at": "2026-09-15T12:00:00Z",
+ "source": "records_assurance_service",
+ "snapshots": [
+  {
+   "captured_at": "2026-09-15T12:00:00Z",
+   "data_store": "identity_service",
+   "collection": "deleted_customer_references",
+   "records": [
+    {
+     "resource_id": "tombstone_9002",
+     "subject_reference": "user_902",
+     "name": "Tomas Brandt",
+     "email": "tomas.brandt@example.org",
+     "phone": "+49 151 2345 9002",
+     "email_hash": null,
+     "account_status": "DELETED"
+    }
+   ]
+  }
+ ]
+}

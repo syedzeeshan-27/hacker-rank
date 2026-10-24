@@ -1,0 +1,4 @@
+2026-09-20T10:00:00Z level=INFO service=readback_collector event=export_started target_count=1 mode=point_in_time
+2026-09-20T10:01:00Z level=DEBUG service=search_service trace_id=rb-c-301 event=index_query_started resource_id=search_9005 lookup_key=dev.raman@example.org
+2026-09-20T10:01:00Z level=INFO service=search_service trace_id=rb-c-301 event=index_query_completed resource_id=search_9005 result=hit total_hits=1 index=customer_directory_v3 email=dev.raman@example.org customer_reference=null
+2026-09-20T10:02:00Z level=INFO service=readback_collector event=export_completed queries=1 dropped=0

@@ -1,0 +1,6 @@
+2026-09-10T10:00:00Z level=INFO service=readback_collector event=export_started target_count=2 mode=point_in_time
+2026-09-10T10:00:01Z level=DEBUG service=account_service trace_id=rb-c-201 event=profile_lookup_started resource_id=account_9005 lookup_key=dev.raman@example.org
+2026-09-10T10:00:01Z level=INFO service=account_service trace_id=rb-c-201 event=profile_lookup_completed resource_id=account_9005 rows=0 http_status=404
+2026-09-10T10:01:00Z level=DEBUG service=search_service trace_id=rb-c-202 event=index_query_started resource_id=search_9005 lookup_key=dev.raman@example.org
+2026-09-10T10:01:00Z level=INFO service=search_service trace_id=rb-c-202 event=index_query_completed resource_id=search_9005 result=miss total_hits=0 index=customer_directory_v3
+2026-09-10T10:02:00Z level=INFO service=readback_collector event=export_completed queries=2 dropped=0
