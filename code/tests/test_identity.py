@@ -9,10 +9,23 @@ CODE_DIR = Path(__file__).resolve().parents[1]
 if str(CODE_DIR) not in sys.path:
     sys.path.insert(0, str(CODE_DIR))
 
-from ghost.identity import match_kind, resolve_subject  # noqa: E402
+from ghost.identity import derived_account_id, match_kind, resolve_subject  # noqa: E402
 from ghost.models import AuditEvent, Identity, parse_ts  # noqa: E402
 
 NOW = datetime(2026, 10, 1, tzinfo=timezone.utc)
+
+
+def test_derived_account_id_only_for_zero_padded_user_ids():
+    assert derived_account_id("user_03") == "account_003"
+    assert derived_account_id("user_09") == "account_009"
+    assert derived_account_id(" user_04 ") == "account_004"
+    # no leading zero -> no pattern (these users' accounts carry unrelated numbers)
+    assert derived_account_id("user_10") == ""
+    assert derived_account_id("user_14") == ""
+    assert derived_account_id("user_541") == ""
+    assert derived_account_id("user_9") == ""
+    assert derived_account_id("account_03") == ""
+    assert derived_account_id("") == ""
 
 
 def ident(uid, email, phone="+1 555 0100", h="AA11", name="Ada  Lovelace"):

@@ -15,11 +15,14 @@ never cited, even if a snapshot inside it is older (sample case_26 cites the 11:
 12:00 snapshot inside the 09-17 bundle). Inside an eligible file the fact time is the record's own
 time. Activity rows count only when they happened at or before audit_at.
 
-One exception, for linking only: if a later-delivered file holds a record snapshot taken at or before
-audit_at that says "resource X belongs to user U", we use that tie to know *which* records to check
-(typically the security audit record). It never supplies a state or a citation, and it only ever adds
-future verification steps in INCOMPLETE cases (on the eval set no COMPLETE answer depends on it).
-Switch: `state.LINK_FROM_LATER_FILES`.
+Linkage is separate from state. Which account or record belongs to which person does not change, so
+a tie "resource X belongs to user U" may come from any file, including one captured after audit_at;
+it only says *which* records to look at. The record's state and citation always come from files
+eligible for the case. The same goes for the opposite tie: a later file showing that a record is
+someone else's removes it from this person's plan. Switch: `state.LINKAGE_IGNORES_AUDIT_CUTOFF`.
+When nothing ties an account to the person, the account id implied by a zero-padded user id is used
+(`identity.derived_account_id`, the one place that pattern lives); its state still comes from
+eligible evidence.
 
 **2. Which records belong to the person.** A resource is tied to the subject when:
 - an observation on it carries one of the subject's emails, phones, email hashes or user_id, current
@@ -168,9 +171,14 @@ Dev after the fixes: 23 / 24 exact.
   COMPLETE with few or no steps: case_34 (evidence_04), case_35 (09), case_39 (14), case_45 (37),
   case_46 (42), case_50 (19), case_52 (23), case_53 (28), case_55 (32), case_61 (46), case_63 (60).
   Dev case_18 may also need evidence_04 / evidence_37.
-- Using later-delivered files for identity ties is a judgement call (rule 1). It recovers
-  the audit record ids the dev answers expect (case_09, 23, 29, 30). Turn it off with
-  `LINK_FROM_LATER_FILES = False` if the orchestrator reads "respect audit_at" more strictly.
+- Using any file for identity ties (rule 1) recovers the audit record ids the dev answers expect
+  (case_09, 23, 29, 30) and the account / audit record of several evaluation cases. Turn it off with
+  `LINKAGE_IGNORES_AUDIT_CUTOFF = False` to restrict linkage to eligible files as well.
+- Deletion queues: the `customer_data_inventory_capture` files only ever list accounts whose status is
+  DELETION_PENDING (8 rows over 11 files), so their account slice is a work queue, not an inventory.
+  The engine detects this from the statuses themselves (`EvidenceIndex.queue_slices`) and never reads
+  "not listed there" as absent; the sample truth agrees (case_04 cites the 09-02 failover capture, not
+  the empty 09-05 inventory).
 - Retention / legal-hold expiry: an expired retention makes the rule's condition fail -> no step. No
   record on the shipped data has an expired date at its case's audit_at.
 

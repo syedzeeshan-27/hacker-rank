@@ -258,3 +258,92 @@ def test_ambiguous_run_window_makes_no_account_claim():
 
 def test_unknown_subject():
     assert planner.decide_unknown_subject(case()) == ("COMPLETE", [])
+
+
+# ---------------------------------------------------------------------------------------------
+# linkage vs state cutoff, derived account, deletion queues
+# ---------------------------------------------------------------------------------------------
+
+def test_linkage_may_use_a_later_file_but_state_and_citation_come_from_eligible_files():
+    # the only file naming the person on audit_record_9 is delivered after audit_at; an older file
+    # shows the record present but carries no identifier
+    world = [
+        obs("ev_old", "2026-09-10T09:00:00Z", "security_service", "audit_record_9", "SECURITY_AUDIT_LOG", "PRESENT"),
+        obs("ev_new", "2026-09-20T09:00:00Z", "security_service", "audit_record_9", "SECURITY_AUDIT_LOG", "PRESENT",
+            users=["user_77"]),
+        obs("ev_old", "2026-09-10T09:00:00Z", "account_service", "account_5", "USER_PROFILE", "ABSENT",
+            emails=["kai@example.org"]),
+    ]
+    status, steps, _ = run(world, c=case(audit="2026-09-15T12:00:00Z"))
+    assert status == "COMPLETE"
+    assert tuples(steps) == [
+        ("VERIFICATION", "VERIFY_RECORD_ABSENT", "account_service", "account_5", "ev_old"),
+        ("VERIFICATION", "VERIFY_RECORD_PRESENT", "security_service", "audit_record_9", "ev_old"),
+    ]
+    saved = state.LINKAGE_IGNORES_AUDIT_CUTOFF
+    try:
+        state.LINKAGE_IGNORES_AUDIT_CUTOFF = False
+        _, strict_steps, _ = run(world, c=case(audit="2026-09-15T12:00:00Z"))
+        assert [s.resource_id for s in strict_steps] == ["account_5"]
+    finally:
+        state.LINKAGE_IGNORES_AUDIT_CUTOFF = saved
+
+
+def test_a_later_file_can_show_a_run_row_belongs_to_someone_else():
+    head = _ev("activity_10", "2026-09-02T11:00:00Z", "DELETE_RECORD", "account_service", "account_5")
+    first = head.event_time + timedelta(minutes=30, seconds=41)
+    events = [head, _ev("activity_11", fmt_ts(first), "DELETE_RECORD", "search_service", "search_1")]
+    world = [
+        obs("ev_1", "2026-09-14T10:00:00Z", "search_service", "search_1", "SEARCH_INDEX_ENTRY", "ABSENT"),
+        # delivered after audit_at: the document is another person's
+        obs("ev_late", "2026-09-30T10:00:00Z", "search_service", "search_1", "SEARCH_INDEX_ENTRY", "PRESENT",
+            emails=["other@example.org"], users=["user_12"]),
+        obs("ev_1", "2026-09-14T10:00:00Z", "account_service", "account_5", "USER_PROFILE", "ABSENT"),
+    ]
+    status, steps, _ = run(world, events=events)
+    assert status == "COMPLETE"
+    assert "search_1" not in {s.resource_id for s in steps}
+
+
+def test_derived_account_is_used_only_when_nothing_else_supplies_one():
+    subj = Subject(user_id="user_07", emails={"pri@example.org"}, names={"Pri Raman", "pri raman"})
+    c = case(audit="2026-09-15T12:00:00Z")
+    cov = [Coverage("ev_snap", T("2026-09-14T12:00:00Z"), "account_service", "customer_profiles_primary",
+                    {"account_900"}, origin="failover_capture")]
+    world = [obs("ev_snap", "2026-09-14T12:00:00Z", "account_service", "account_900", "USER_PROFILE", "PRESENT",
+                 emails=["someone@example.org"], extra={"status": {"account_status": "ACTIVE"}})]
+    ext = ExtractionResult(observations=world, coverage=cov)
+    act = ActivityIndex([])
+    ctx = state.AuditContext.build(ext, act)
+    status, steps, _ = planner.audit_case(c, subj, ext, act, RULES, ctx)
+    assert status == "COMPLETE"
+    assert tuples(steps) == [("VERIFICATION", "VERIFY_RECORD_ABSENT", "account_service", "account_007", "ev_snap")]
+    # an account tied by evidence wins over the derived one
+    world2 = world + [obs("ev_snap", "2026-09-14T12:00:00Z", "account_service", "account_4321", "USER_PROFILE",
+                          "ABSENT", emails=["pri@example.org"])]
+    ext2 = ExtractionResult(observations=world2, coverage=cov)
+    ctx2 = state.AuditContext.build(ext2, act)
+    _, steps2, _ = planner.audit_case(c, subj, ext2, act, RULES, ctx2)
+    assert [s.resource_id for s in steps2] == ["account_4321"]
+
+
+def test_a_deletion_queue_never_implies_absence():
+    # the "inventory" origin only ever lists accounts that are pending deletion: it is a work queue,
+    # so not being listed in it proves nothing; a real enumeration from another origin does
+    cov = [Coverage("ev_queue", T("2026-09-14T12:00:00Z"), "account_service", "customer_profiles",
+                    {"account_8"}, origin="inventory_capture"),
+           Coverage("ev_enum", T("2026-09-12T12:00:00Z"), "account_service", "customer_profiles_primary",
+                    {"account_8", "account_9"}, origin="failover_capture")]
+    world = [
+        obs("ev_queue", "2026-09-14T12:00:00Z", "account_service", "account_8", "USER_PROFILE", "PRESENT",
+            emails=["x@example.org"], extra={"status": {"account_status": "DELETION_PENDING"}}),
+        obs("ev_enum", "2026-09-12T12:00:00Z", "account_service", "account_8", "USER_PROFILE", "PRESENT",
+            emails=["x@example.org"], extra={"status": {"account_status": "ACTIVE"}}),
+        obs("ev_enum", "2026-09-12T12:00:00Z", "account_service", "account_9", "USER_PROFILE", "PRESENT",
+            emails=["y@example.org"], extra={"status": {"account_status": "ACTIVE"}}),
+    ]
+    ev = [ActivityEvent("activity_1", T("2026-09-02T11:00:00Z"), "DELETE_RECORD", "deletion_worker",
+                        "account_service", "account_5", "SUCCESS", "Deletion worker submitted account_5.")]
+    status, steps, _ = run(world, coverage=cov, events=ev)
+    assert status == "COMPLETE"
+    assert tuples(steps) == [("VERIFICATION", "VERIFY_RECORD_ABSENT", "account_service", "account_5", "ev_enum")]

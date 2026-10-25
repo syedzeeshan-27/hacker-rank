@@ -281,3 +281,39 @@ repo_root=C:\hackerrank\hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+
+## [2026-10-25T00:47:02Z] Review fixes: derived account, linkage vs state cutoff, console states, packaging, README
+
+User Prompt (verbatim, secrets redacted):
+Review found these problems in the Ghost Data solution. Fix them, re-run the full pipeline cold, re-score against dataset/sample_output.csv, and update the evaluation report with what changed.
+
+1. Missed pattern: users user_01..user_09 map to account_001..account_009. The data proves it (account_001, 002, 005, 006, 007, 008 all exist keyed to those users) and sample truth for case_04 (user_04) cites account_004 even though it appears nowhere in the inputs. The engine currently has no account step for case_45 (user_03), case_61 (user_07) and case_63 (user_09). Derive the account id from the user id when nothing else supplies one, and cite the latest account snapshot at or before audit_at where it is absent, the way case_04's truth cites evidence_54.
+
+2. Two rows are COMPLETE with an empty steps_json (case_39, case_55). The spec says COMPLETE must contain verification steps and an empty array means NOT_APPLICABLE. Work out what verification can be proven for these two and emit it, or justify the status.
+
+3. The evidence time cutoff throws away files captured after audit_at for everything. That's correct for a record's state but wrong for identity linkage (which account_id belongs to which user never changes). Separate the two: linkage can use any file, state must use files at or before audit_at.
+
+4. Packaging: the spec requires evaluation/evaluation_report.md and evaluation/usage_report.md at the top level of code.zip. Ours are at code/evaluation/. Make the zip put evaluation/ at the root (keeping code/evaluation/ is fine too).
+
+5. README is the first thing judges read. Tighten it: lead with what the tool does and the results table, make the quick start copy-pasteable, fix the packaging command to match item 4, and make sure every number in it matches the final run.
+
+Don't touch the hardcoded-id rule: no case ids, evidence ids or resource ids in the engine. The user_0N -> account_00N mapping is a pattern, not a hardcode, but keep it in one clearly named place.
+
+Agent Response Summary:
+Applied the five review points. (1) identity.derived_account_id maps zero-padded user ids to account_00N and state.link_resources uses it only when no file, catalog row or deletion run supplies an account; case_45 now cites evidence_54 for account_003 (as case_04's truth does for account_004), case_61/63 get future account checks. (2) Console vocabulary now maps to states (healthy/continuous flow = ACTIVE; archive with checksum/drill/retention fields = restorable) and a record's creation date is no longer taken as its capture time: case_39 and case_55 are INCOMPLETE with the screenshot cited. (3) Linkage ignores the audit cutoff (LINKAGE_IGNORES_AUDIT_CUTOFF), state and citations do not. While doing (1) found that customer_data_inventory files only list DELETION_PENDING accounts, so they are treated as deletion queues that never prove absence (EvidenceIndex.queue_slices); 23 COMPLETE answers re-cite. (4) code/tools/package.py builds code.zip with evaluation/ at the root. (5) README rewritten; the old 160/348 split was wrong (file held 154/354). Cold run 20261025T004034Z: 518 rows, 153/355/10, 11 vision calls, $0.2141; identical to the cached run. Samples: 32/32 status, dev 23/24, holdout 5/8 (step recall 0.864 -> 0.886). 120 unit tests and 9 custom cases pass. 39 of 518 rows changed; viewer and demo rebuilt.
+
+Actions:
+* Edited code/ghost/identity.py (derived_account_id), code/ghost/state.py (linkage vs state cutoff, derived account fallback, deletion-queue slices), code/ghost/evidence/common.py (flow / archive console states), code/ghost/evidence/images.py (creation date is not capture time), code/ghost/evidence/registry.py (Coverage.origin), code/ghost/planner.py (docstring)
+* Added code/tools/package.py; added tests in code/tests/test_identity.py, test_engine.py, test_evidence.py (120 pass)
+* Ran python code/main.py --clear-cache (run 20261025T004034Z) -> output.csv; python code/evaluation/usage_report.py --run-id 20261025T004034Z --cases 518; contract validation 0 errors; sample scoring all/dev/holdout
+* Updated code/evaluation/evaluation_report.md (sections 2, 2.1, 4 fixes 9-12, 6, new section 7), code/evaluation/notes/ws_d_engine.md, README.md
+* Rebuilt viewer/index.html, demo/demo.mp4, demo/demo.gif; rebuilt code.zip via code/tools/package.py
+* Published the updated tree to https://github.com/syedzeeshan-27/hacker-rank.git (main) via a temporary index
+
+Context:
+tool=Claude Code
+model=claude-fable-5-1
+branch=main
+repo_root=C:\hackerrank\hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

@@ -201,8 +201,10 @@ def test_map_llm_image_payload():
     b = by["backup_9287"]
     assert (b.system_id, b.category, b.state_hint) == ("backup_service", "BACKUP_ARCHIVE", "ACTIVE")
     assert b.emails == {"areed1433@gmail.com"}
-    assert b.captured_at == datetime(2026, 4, 26, 2, 0, tzinfo=timezone.utc)
-    assert b.extra["stated_captured_at"] == "2026-04-26T02:00:00Z"
+    # the model copied the archive's "Created" date into captured_at: that is not the screen time,
+    # so the observation falls back to the manifest capture time
+    assert b.captured_at == datetime(2026, 4, 29, 9, 0, tzinfo=timezone.utc)
+    assert "stated_captured_at" not in b.extra
     assert by["backup_9288"].state_hint == "BLOCKED" and by["backup_9288"].user_ids == {"user_77"}
     ref = by[""]
     assert ref.user_ids == {"user_17"} and ref.extra["external_refs"] == ["ORD-20263245"]
@@ -212,6 +214,25 @@ def test_map_llm_image_payload():
     assert sup.state_hint == "PRESENT" and sup.names == {"Kofi Agyeman"}
     assert "Note" not in json.dumps(sup.extra)
     assert "ev_x" in scanner.flags and "ignore previous" in scanner.flags["ev_x"]
+
+
+def test_console_screens_show_running_flows_and_restorable_archives():
+    from ghost.evidence.common import Idents, derive_state
+
+    def st(rec, cat):
+        return derive_state(rec, cat, Idents(), lookup_style=False, pii_schema=True)
+
+    # connector console: healthy + continuous sync = a running flow; an explicit flag still wins
+    assert st({"status": "Healthy", "sync_mode": "Continuous sync"}, "DATA_FLOW") == "ACTIVE"
+    assert st({"mode": "Continuous"}, "DATA_FLOW") == "ACTIVE"
+    assert st({"status": "Healthy", "enabled": False}, "DATA_FLOW") == "DISABLED"
+    assert st({"status": "Paused", "sync_mode": "Continuous sync"}, "DATA_FLOW") == "DISABLED"
+    assert st({"destination": "warehouse"}, "DATA_FLOW") == "UNKNOWN"
+    # archive inventory: checksum / drill / retention fields describe a restorable archive unless blocked
+    assert st({"checksum": "Verified", "last_drill": "29 Mar 2026", "retention_end": "26 Jul 2026"}, "BACKUP_ARCHIVE") == "ACTIVE"
+    assert st({"checksum": "Verified", "status": "Restore blocked"}, "BACKUP_ARCHIVE") == "BLOCKED"
+    assert st({"checksum": "Verified", "deletion_block": True}, "BACKUP_ARCHIVE") == "BLOCKED"
+    assert st({"region": "eu-west-1", "size": "84.7 GB"}, "BACKUP_ARCHIVE") == "UNKNOWN"
 
 
 class _StubLLM:

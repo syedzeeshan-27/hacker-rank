@@ -156,3 +156,26 @@ def identifier_timeline(user_id: str, identities: list[Identity],
     idx = get_index(identities, audit_log)
     return [(a.event_time, a.field_name, a.old_value, a.new_value, a.audit_id)
             for a in idx.audit_by_user.get(user_id, [])]
+
+
+# ---------------------------------------------------------------------------------------------
+# Account id implied by the user id. This is the ONE place that pattern lives.
+# ---------------------------------------------------------------------------------------------
+
+def derived_account_id(user_id: str) -> str:
+    """Account record id implied by a zero-padded user id ("user_03" -> "account_003"), else "".
+
+    The identity snapshot numbers its first users with a leading zero (user_01 .. user_09) and the
+    platform's account records for those people carry the same number padded to three digits: the
+    failover replica lists account_005 for user_05, the search index names account_006 on user_06's
+    document, and the deletion worker's account rows for those users' own requests are account_001,
+    account_002, account_007 and account_008. From user_12 onward the account numbers are unrelated
+    (four-digit ids), so only the zero-padded form is mapped; user_10 (account_010) is reached through
+    its own deletion run. The engine uses this only when no evidence file, catalog row or deletion run
+    supplies an account for the person (state.link_resources), and the derived account still gets its
+    state and citation from eligible evidence like any other resource.
+    """
+    prefix, _, num = (user_id or "").strip().rpartition("_")
+    if prefix != "user" or len(num) < 2 or not num.isdigit() or not num.startswith("0"):
+        return ""
+    return f"account_{int(num):03d}"

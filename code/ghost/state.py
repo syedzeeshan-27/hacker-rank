@@ -15,9 +15,13 @@ Time rules (the core of "respect audit_at")
   states and citations. The manifest time is the file's delivery time; a bundle delivered after audit_at
   is never cited, even if a snapshot inside it is older (Observation.extra["manifest_captured_at"]).
 * Inside an eligible file the fact time is Observation.captured_at (the inner snapshot / line time).
-* Identity ties ("resource X belongs to user U") may also come from a later file when the record's own
-  fact time is <= audit_at (LINK_FROM_LATER_FILES). Such a tie only says which resources to verify; it
-  never supplies a state or a citation.
+* Identity linkage is separate from state. Which account / record belongs to which person does not
+  change over time, so a tie ("resource X belongs to user U") may come from ANY file, including one
+  captured after audit_at (LINKAGE_IGNORES_AUDIT_CUTOFF). Such a tie only says which resources to look
+  at; the resource's state and citation always come from eligible files only (_facts_for).
+* When nothing ties an account to the person, the account id implied by a zero-padded user id is used
+  (identity.derived_account_id, the one place that pattern lives); its state still comes from
+  eligible evidence.
 * Activity rows count only when event_time <= audit_at.
 
 How a resource is tied to the subject (Link.reasons)
@@ -58,6 +62,7 @@ from typing import Iterable, Optional
 
 from .activity import ActivityIndex, system_for
 from .evidence import ExtractionResult
+from .identity import derived_account_id
 from .models import (
     ActivityEvent,
     Case,
@@ -73,8 +78,9 @@ from .models import (
 # Tunables (documented in code/evaluation/notes/ws_d_engine.md)
 # ---------------------------------------------------------------------------------------------
 
-# Identity ties may come from a later-delivered file whose record fact time is <= audit_at.
-LINK_FROM_LATER_FILES = True
+# Identity linkage (which resource belongs to whom) uses every file, whatever its capture time; only
+# states and citations are subject to the audit_at cutoff. Set False to also restrict linkage.
+LINKAGE_IGNORES_AUDIT_CUTOFF = True
 
 # Deletion-run reconstruction. Derived from the shape of system_activity.csv (not from answers):
 # the deletion worker dispatches a run's follow-up actions at a fixed cadence, so consecutive follow-ups
@@ -104,6 +110,14 @@ def default_violation_states(category: str) -> frozenset:
 
 STATE_RANK = {"PRESENT": 4, "REDACTED": 3, "ANONYMIZED": 2, "ACTIVE": 4, "UNKNOWN": 1,
               "DISABLED": 0, "BLOCKED": 0, "ABSENT": 0}
+
+# Status values that mark a record as queued for deletion rather than listed as part of the store.
+PENDING_WORDS = frozenset({"deletion_pending", "pending_deletion", "pending", "queued",
+                           "scheduled_for_deletion", "awaiting_deletion"})
+
+
+def _status_word(v) -> str:
+    return str(v).strip().lower().replace(" ", "_").replace("-", "_")
 
 _REPLICA_SCOPE = [
     (re.compile(r"failover"), "failover_replica"),
@@ -186,6 +200,19 @@ class EvidenceIndex:
         for c in extraction.coverage:
             if c.kind == "snapshot":
                 self.coverage_by_system[c.system_id].append(c)
+        # Work queues: a source whose slice of a system only ever lists records that are pending
+        # deletion is a deletion queue, not an inventory of that system. "Not listed" there says
+        # nothing, so such slices never imply absence (see _facts_for).
+        origin_of = {c.evidence_id: c.origin for c in extraction.coverage if c.origin}
+        seen: dict[tuple[str, str], list[bool]] = defaultdict(list)
+        for o in extraction.observations:
+            org = origin_of.get(o.evidence_id)
+            if not org or not o.resource_id or o.state_hint in ("", "UNKNOWN"):
+                continue
+            st = (o.extra or {}).get("status") or {}
+            words = {_status_word(v) for v in st.values() if v is not None}
+            seen[(org, o.system_id)].append(bool(words & PENDING_WORDS))
+        self.queue_slices: frozenset = frozenset(k for k, flags in seen.items() if flags and all(flags))
 
     def candidates(self, subject: Subject, ambiguous_names: frozenset = frozenset()) -> list[tuple[Observation, str]]:
         """(observation, how) for every observation that names the subject. Deterministic order."""
@@ -399,13 +426,19 @@ def _add_link(links: dict, system_id: str, resource_id: str, reason: str, catego
         lk.category = category
 
 
+def _linkable(o: Observation, case: Case) -> bool:
+    """Identity linkage ignores the audit cutoff (ownership does not change); state never does."""
+    if LINKAGE_IGNORES_AUDIT_CUTOFF:
+        return True
+    return o.captured_at <= case.audit_at and file_time(o) <= case.audit_at
+
+
 def direct_links(case: Case, subject: Subject, ctx: AuditContext) -> dict[tuple[str, str], Link]:
-    """Resources tied to the subject by identifiers in evidence and by catalog rows (no run logic)."""
+    """Resources tied to the subject by identifiers in evidence (no run logic). Linkage only: a resource
+    found here still gets its state and citation from files eligible for the case."""
     links: dict[tuple[str, str], Link] = {}
     for o, how in ctx.evidence.candidates(subject, ctx.ambiguous_names):
-        if not o.resource_id or o.captured_at > case.audit_at:
-            continue
-        if file_time(o) > case.audit_at and not LINK_FROM_LATER_FILES:
+        if not o.resource_id or not _linkable(o, case):
             continue
         _add_link(links, o.system_id or system_for(o.resource_id)[0], o.resource_id, "identifier", o.category)
     return links
@@ -491,10 +524,12 @@ def _claims(ctx: AuditContext, activity_index: ActivityIndex, as_of: datetime) -
 
 
 def _owned_by_other(resource_id: str, subject: Subject, case: Case, ctx: AuditContext) -> bool:
+    """Ownership is identity linkage, so any file may show that a resource belongs to someone else."""
     for o in ctx.evidence.by_resource.get(resource_id, ()):
-        if file_time(o) > case.audit_at or o.captured_at > case.audit_at:
+        if not _linkable(o, case):
             continue
-        if (o.emails or o.user_ids or o.phones or o.email_hashes) and not o.mentions(subject)                 and _conflicts(o, subject):
+        if (o.emails or o.user_ids or o.phones or o.email_hashes) and not o.mentions(subject) \
+                and _conflicts(o, subject):
             return True
     return False
 
@@ -557,6 +592,11 @@ def link_resources(case: Case, subject: Subject, ctx: AuditContext,
                 continue        # a neighbouring run's row that happens to fit the cadence
             s, cat = system_for(e.resource_id, e.target_system)
             _add_link(links, s, e.resource_id, "run", cat)
+    if not any(s == "account_service" for (s, _r) in links):
+        # last resort: the account id implied by the user id (identity.derived_account_id)
+        derived = derived_account_id(subject.user_id)
+        if derived and not _owned_by_other(derived, subject, case, ctx):
+            _add_link(links, "account_service", derived, "derived", "USER_PROFILE")
     return links, run
 
 
@@ -594,6 +634,8 @@ def _facts_for(system_id: str, resource_id: str, case: Case, ctx: AuditContext) 
     for c in ctx.evidence.coverage_by_system.get(system_id, ()):
         if c.captured_at > case.audit_at or ctx.evidence.file_time.get(c.evidence_id, c.captured_at) > case.audit_at:
             continue
+        if (c.origin, c.system_id) in ctx.evidence.queue_slices:
+            continue    # a work queue (every row it ever lists is pending deletion) enumerates nothing
         by_ev_copy[(c.evidence_id, copy_of_scope(c.scope))].append(c)
     for (ev, cp), covs in by_ev_copy.items():
         if any(resource_id in c.resource_ids for c in covs):

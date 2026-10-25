@@ -407,6 +407,12 @@ ACTIVE_WORDS = {"active", "enabled", "running", "restore_allowed", "allowed", "a
                 "continuous_sync", "syncing", "on"}
 DISABLED_WORDS = {"disabled", "stopped", "paused", "inactive", "off", "suspended"}
 BLOCKED_WORDS = {"blocked", "deny", "denied", "restore_blocked", "locked"}
+# A connector console that shows a flow as healthy / continuously syncing shows a running flow.
+FLOW_RUNNING_WORDS = {"healthy", "continuous", "continuous_sync", "streaming", "real_time", "realtime"}
+FLOW_MODE_KEYS = ("sync_mode", "mode", "schedule")
+# Archive-inventory fields: an archive that passed its checksum / restore drill and is inside its
+# retention window is restorable unless a block is recorded on it.
+ARCHIVE_INVENTORY_KEYS = ("checksum", "last_drill", "last_restore_drill", "retention_end", "retention_ends")
 
 STATUS_KEYS = ("result", "status", "state", "decision", "outcome", "status_code", "http_status")
 
@@ -455,10 +461,11 @@ def derive_state(rec: dict, category: str, idents: Idents, *, lookup_style: bool
             return "ACTIVE" if en else "DISABLED"
         if _truthy(rec.get("scheduler_registered")) is False:
             return "DISABLED"
-        for w in status_words + [_word(rec.get("last_delivery_status"))]:
+        mode_words = [_word(rec.get(k)) for k in FLOW_MODE_KEYS if not is_nullish(rec.get(k))]
+        for w in status_words + [_word(rec.get("last_delivery_status"))] + mode_words:
             if w in DISABLED_WORDS:
                 return "DISABLED"
-            if w in ACTIVE_WORDS:
+            if w in ACTIVE_WORDS or w in FLOW_RUNNING_WORDS:
                 return "ACTIVE"
         return "UNKNOWN"
     if category == "BACKUP_ARCHIVE":
@@ -473,6 +480,8 @@ def derive_state(rec: dict, category: str, idents: Idents, *, lookup_style: bool
             if w in ACTIVE_WORDS:
                 return "ACTIVE"
         if _truthy(rec.get("eligible")) is True and _truthy(rec.get("deletion_block")) is False:
+            return "ACTIVE"
+        if any(not is_nullish(rec.get(k)) for k in ARCHIVE_INVENTORY_KEYS):
             return "ACTIVE"
         return "UNKNOWN"
 

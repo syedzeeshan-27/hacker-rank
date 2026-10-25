@@ -18,7 +18,8 @@ Decision rules (plain English version in code/evaluation/notes/ws_d_engine.md)
 1. state.reconstruct gives every resource tied to the subject and its state at audit_at.
 2. The subject's account record is ONE account: the account of the deletion run reconstructed for this
    request when the evidence or the run cadence ties it, else the identifier-linked account with the newest
-   fact, else the run picked by timing / elimination. Other account ids (old lookups) are ignored.
+   fact, else the run picked by timing / elimination, else the account id implied by a zero-padded user id
+   (identity.derived_account_id). Other account ids (old lookups) are ignored.
 3. policy.required_treatment maps each resource's category to DELETE / REDACT / ANONYMIZE / RETAIN /
    BLOCK_RESTORE / DISABLE through deletion_rules.csv.
 4. Per resource, (treatment, state) gives findings + remediation + verification:

@@ -52,6 +52,7 @@ class Coverage:
     scope: str                 # table / collection / section name
     resource_ids: set[str] = field(default_factory=set)
     kind: str = "snapshot"     # "snapshot" (enumerates the store) | "lookup" (per-subject lookups)
+    origin: str = ""           # manifest origin of the file (set by the registry)
 
 
 @dataclass
@@ -111,6 +112,9 @@ def extract_all_detailed(manifest: list[EvidenceFile], llm: LLMClient, *,
             result.skipped.append(ef.file_id)
             continue
         result.observations.extend(obs)
+        for c in cov:
+            if not c.origin:
+                c.origin = ef.origin
         result.coverage.extend(cov)
     result.injection_flags = dict(scanner.flags)
     if write_flags:

@@ -80,9 +80,13 @@ def map_llm_payload(payload: Any, ef: EvidenceFile, scanner: InjectionScanner, *
         if status:
             rec["status"] = status
         system = str(r.get("system") or "").strip()
-        rec_time = r.get("captured_at") or ""
-        if rec_time and try_parse_ts(str(rec_time)):
-            rec["captured_at"] = str(rec_time)
+        rec_time = str(r.get("captured_at") or "").strip()
+        # A record's creation / retention date is not the time the screen was captured: when the model
+        # copied such a field into captured_at, fall back to the screen time (then the manifest time).
+        dated_fields = {str(v).strip() for k, v in fields.items()
+                        if re.search(r"creat|opened|since|retention|drill|expir|start", str(k), re.I)}
+        if rec_time and rec_time not in dated_fields and try_parse_ts(rec_time):
+            rec["captured_at"] = rec_time
         extra = {"format": fmt, "llm_record": idx}
         if title:
             extra["screen_title"] = title[:120]
