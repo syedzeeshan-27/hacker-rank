@@ -317,3 +317,44 @@ branch=main
 repo_root=C:\hackerrank\hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T04:50:37Z] Interview prep document for the AI judge conversation
+
+User Prompt (verbatim, secrets redacted):
+so i have like AI judge interview for this.. idk anything about the project so like can you help me prepare for the interview its a 30 min interview with the judge (judge is AI lol) so drop a docx file prolly including all the questions he might ask its like what dude 30 mins and that's a lot blshit .. keep everything in plain simpler terms no jargon or no writing like Technical or research report.. so it might start of with me telling him the pitch about what we did for 2 min..
+
+Agent Response Summary:
+Wrote a plain-English interview guide as a Word document (C:/hackerrank/Ghost_Data_Interview_Prep.docx, 12 pages, kept outside the repository and the submission): a 2-minute pitch script, a table of the numbers to remember (518 requests, 153/355/10, 32/32 status, 23/24 and 5/8 exact, 11 model calls, $0.21, 120 tests), the pipeline explained in eight plain steps, the six key ideas (time cutoff, claims vs proof, linkage vs state, retention, safe order, untrusted evidence), about 35 likely judge questions with short answers grouped by architecture, investigation, remediation, evaluation, AI usage, trust and process, curveball handling, a glossary and dos and don'ts. All figures were taken from the final run's reports. No code or submission file changed.
+
+Actions:
+* Wrote and ran a docx-js build script (scratchpad) -> C:/hackerrank/Ghost_Data_Interview_Prep.docx
+* Checked the file with python-docx (19 headings, 3 tables, 20 bullets) and rendered it to PDF through Word to review the layout
+
+Context:
+tool=Claude Code
+model=claude-fable-5-1
+branch=main
+repo_root=C:\hackerrank\hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
+## [2026-10-25T05:02:05Z] Live viewer link added to README
+
+User Prompt (verbatim, secrets redacted):
+i deployed on this https://audit-agent-xi.vercel.app/ the viewer add on readme if req the link
+
+Agent Response Summary:
+Checked that the deployed viewer answers (HTTP 200, title 'Ghost Data Audit'), added the live link to the README Demo section, rebuilt code.zip with the updated README (python code/tools/package.py) and published the README change to the public GitHub repository on top of its current head. No engine code, output.csv or report changed.
+
+Actions:
+* Edited README.md (Demo section: live viewer link https://audit-agent-xi.vercel.app/)
+* Ran python code/tools/package.py -> code.zip rebuilt and checked
+* Published README.md + log.txt to https://github.com/syedzeeshan-27/hacker-rank.git (main) via a temporary index
+
+Context:
+tool=Claude Code
+model=claude-fable-5-1
+branch=main
+repo_root=C:\hackerrank\hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

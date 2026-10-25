@@ -129,12 +129,14 @@ https://www.hackerrank.com/contests/hackerrank-orchestrate-october26/challenges/
 
 ## Demo
 
+**Live results viewer: https://audit-agent-xi.vercel.app/**
+
 ![Results viewer walkthrough](demo/demo.gif)
 
-`viewer/index.html` is a single self-contained page built from `output.csv` alone (no dataset data
-inside): counts per verdict, a filterable list of the 518 cases, and for each case its findings, the
-remediation plan in safe order, and the checks that must pass afterwards. `demo/demo.mp4` is the same
-walkthrough as a video.
+The viewer (`viewer/index.html`, deployed at the link above) is a single self-contained page built from
+`output.csv` alone (no dataset data inside): counts per verdict, a filterable list of the 518 cases, and
+for each case its findings, the remediation plan in safe order, and the checks that must pass afterwards.
+`demo/demo.mp4` is the same walkthrough as a video.
 
 Rebuild both after a run (`pip install -r code/requirements-dev.txt`, plus ffmpeg on PATH):
 
